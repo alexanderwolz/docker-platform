@@ -1,0 +1,17 @@
+version: "3.9"
+services:
+  example:
+    container_name: example
+    hostname: example
+    build: ./build
+    restart: unless-stopped
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - ./config/example.conf:/home/root/example.conf
+    networks:
+      external1:
+networks:
+  external1:
+    external:
+      name: external_network1

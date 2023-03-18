@@ -1,0 +1,5 @@
+NAME="example"
+DESCRIPTION="Example Project"
+ADDITIONAL_FILES="build,config"
+PRE_HOOK="pre.sh"
+POST_HOOK="post.sh"
