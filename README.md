@@ -6,10 +6,12 @@ Platform for easy management of Docker Containers on
 single remote hosts
 
 ## Docker Package
-The core idea behind this platform is a so-called "Docker Package" folder that consists of several files, including a metadata file named ```docker.pkg```. This package is synched to the remote host using rSync and can be executed according the given ```docker-compose.yml```. Additionally a pre- and a post-script can be executed before and after starting the Docker services. The metadata contains
+The core idea behind this platform is a so-called "Docker Package" folder that consists of several files, including a metadata file named ```docker.pkg```. This package is synched to the remote host using rSync and can be executed according the given ```docker-compose.yml```. Additionally a pre- and a post-script can be executed before and after starting the Docker services.
+
+The metadata file contains:
 - ```NAME```: The name of the package (used as ID for sync)
 - ```DESCRIPTION```: Description of the package
-- ```ADDITIONAL_FILES```: Comma-separated list of additional files and folder that should be synched to the remote server
+- ```ADDITIONAL_FILES```: Comma-separated list of files and folders that should be synched to the remote server
 - ```PRE_HOOK```: Script file that is executed before starting the services
 - ```POST_HOOK```: Script file that is executed after services have been startet
 
@@ -53,6 +55,9 @@ The following scripts are synched to the remote host:
 - **stop.sh** - Stops a given Docker package
 
 <br>
+<br>
+
+- - -
 Made with ❤️ in Bavaria
 <br>
 © 2018-2023, <a href="https://www.alexanderwolz.de"> Alexander Wolz
