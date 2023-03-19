@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (C) 2023 Alexander Wolz <mail@alexanderwolz.de>
+
 
 if [ -z $SCRIPT_DIR ]; then
     echo "Setting up docker networks .."

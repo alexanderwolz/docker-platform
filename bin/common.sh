@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (C) 2023 Alexander Wolz <mail@alexanderwolz.de>
+
 
 FOLDER_NAME_PACKAGES="packages"
 FOLDER_NAME_SCRIPTS="bin"
