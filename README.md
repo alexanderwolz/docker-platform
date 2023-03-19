@@ -6,7 +6,12 @@ Platform for easy management of Docker Containers on
 single remote hosts
 
 ## Docker Package
-The core idea behind this platform is a so-called "Docker Package" folder that consists of several files, including a metadata file named ```docker.pkg```. This package is synched to the remote host using rSync and can be executed according the given ```docker-compose.yml```. Additionally a pre- and a post-script can be executed before and after starting the Docker services.
+The core idea behind this platform is a so-called "Docker Package" folder that consists of several files, including a metadata file named ```docker.pkg```. This package is synched to the remote host using rSync and can be executed according the given ```docker-compose.yml```. Additionally a pre- and a post-script can be executed before and after starting the Docker services. The metadata contains
+- ```NAME```: The name of the package (used as ID for sync)
+- ```DESCRIPTION```: Description of the package
+- ```ADDITIONAL_FILES```: Comma-separated list of additional files and folder that should be synched to the remote server
+- ```PRE_HOOK```: Script file that is executed before starting the services
+- ```POST_HOOK```: Script file that is executed after services have been startet
 
 ## Setup
 ### General Setup
@@ -42,7 +47,7 @@ The following scripts are synched to the remote host:
 - **backup.sh** - Backs up all container packages, volumes and environment variables
 - **common.sh** - Just a sourcable script holding common functions
 - **hosts.sh** - Updates and writes docker hostnames to the remote server's host config
-- **networks.sh** - Creates external networks according to the network configuration in /etc/networks.conf
+- **networks.sh** - Creates external networks according to the network configuration in ```/etc/networks.conf```
 - **restore.sh** - Restores packages, volumes and environment variables by a given backup file
 - **run.sh** - Runs a given Docker package and executes pre- and post-scripts
 - **stop.sh** - Stops a given Docker package
