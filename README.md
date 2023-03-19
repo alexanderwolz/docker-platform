@@ -36,6 +36,9 @@ export DOCKER_PLATFORM_BACKUPS="/backups"
 
 This toolchain has been successfully tested on Debian GNU/Linux 11 (bullseye), other Linux distributions may be supported in the future too.
 
+### Config files
+Folder ```conf``` contains the configurations for  ```deploy.sh``` and ```build.sh```. They must be customized for each server environment accordingly.
+
 ## Binaries
 Folder ```bin``` contains a variety of toolchain scripts, of which some of them are synched to the remote host.
 
