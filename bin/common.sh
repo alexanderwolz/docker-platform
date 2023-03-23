@@ -24,31 +24,25 @@ function loadPackageFromArgs() {
     return 1
   fi
 
-  FOLDER=$1
-
-  if [ -z $FOLDER ]; then
+  if [ -z $1 ]; then
     echo "Error: please specify a package, e.g:"
-    for directory in ls $PACKAGES_DIR/*/; do
-      if [ -f "$directory$FILE_NAME_PACKAGE_DESC" ]; then
-        echo "   - $(basename $directory)"
+    for DIRECTORY in ls $PACKAGES_DIR/*/; do
+      if [ -f "$DIRECTORY$FILE_NAME_PACKAGE_DESC" ]; then
+        echo "   - $(basename $DIRECTORY)"
       fi
     done
     echo "   - package's root directory"
     return 1
   fi
 
-  if [[ "${FOLDER}" == */ ]]; then
-    FOLDER="${FOLDER::-1}"
-  fi
-
-  if [ ! -d "$FOLDER" ]; then
-    # look up base package dir
-    FOLDER="$PACKAGES_DIR/$FOLDER"
-  fi
-
-  if [ ! -d "$FOLDER" ]; then
-    echo "Error: Invalid folder: '$FOLDER'"
-    return 1
+  if [[ "$1" == *\/* ]] || [[ "$1" == *\\* ]]; then
+    FOLDER=$(readlink -f $1) # read absolute path
+    if [ "$?" -ne 0 ]; then
+      echo "Error: Specified argument '$1' is not a package folder"
+      exit 1
+    fi
+  else
+    FOLDER=$PACKAGES_DIR/$1
   fi
 
   ABSOLUTE_PACKAGE_FILE="$FOLDER/$FILE_NAME_PACKAGE_DESC"
