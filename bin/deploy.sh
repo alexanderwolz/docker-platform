@@ -74,7 +74,7 @@ function initialize() {
 
             echo "-----------------------------------"
             echo "Copying platform packages to '$REMOTE_PACKAGES_FOLDER' .."
-            rsync -avzP -e "ssh $SSH_OPTS" $PACKAGES_DIR/* "$REMOTE:$REMOTE_PACKAGES_FOLDER"
+            rsync -avzPL -e "ssh $SSH_OPTS" $PACKAGES_DIR/* "$REMOTE:$REMOTE_PACKAGES_FOLDER"
             if [ "$?" -ne 0 ]; then
                 exit 1
             fi
@@ -118,7 +118,7 @@ function initialize() {
 
 function uploadPackageFiles(){
     echo "Copying package files to '$REMOTE_PACKAGE_FOLDER'.."
-    rsync -avzP -e "ssh $SSH_OPTS" --delete ${ABSOLUTE_PACKAGE_FILES[*]} "$REMOTE:$REMOTE_PACKAGE_FOLDER"
+    rsync -avzPL -e "ssh $SSH_OPTS" --delete ${ABSOLUTE_PACKAGE_FILES[*]} "$REMOTE:$REMOTE_PACKAGE_FOLDER"
     if [ "$?" -ne 0 ]; then
         exit 1
     fi
@@ -139,7 +139,7 @@ function createScriptsFolder(){
 
 function uploadScripts(){
     echo "Copying scripts to '$REMOTE_SCRIPTS_FOLDER' .."
-    rsync -avzP -e "ssh $SSH_OPTS" $LOCAL_SCRIPTS "$REMOTE:$REMOTE_SCRIPTS_FOLDER"
+    rsync -avzPL -e "ssh $SSH_OPTS" $LOCAL_SCRIPTS "$REMOTE:$REMOTE_SCRIPTS_FOLDER"
 }
 
 function createEtcFolder(){
@@ -153,7 +153,7 @@ function createEtcFolder(){
 
 function uploadEtcFolder(){
     echo "Copying etc to '$REMOTE_ETC_FOLDER' .."
-    rsync -avzP -e "ssh $SSH_OPTS" $LOCAL_ETC_FILES "$REMOTE:$REMOTE_ETC_FOLDER"
+    rsync -avzPL -e "ssh $SSH_OPTS" $LOCAL_ETC_FILES "$REMOTE:$REMOTE_ETC_FOLDER"
 }
 
 
