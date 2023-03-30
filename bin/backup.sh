@@ -138,29 +138,32 @@ function createVolumeBackup() {
     local POSTGRES_LIB_DESTINATION="/var/lib/postgresql/data"
 
     local CONTAINERS=$(docker ps -a --filter=volume=$VOLUME --format '{{.Names}}')
-    
-    #check if mysql lib data - we backup sql dumps, so skip this
-    for CONTAINER in "${CONTAINERS[@]}"
-    do
-        local DESTINATION=$(docker inspect --format "{{ range .Mounts }}{{ if eq .Name \"$VOLUME\" }}{{ .Destination }}{{ end }}{{ end }}" $CONTAINER)
-        if [ "$DESTINATION" = "$MYSQL_LIB_DESTINATION" ]; then
-            echo "Backing up volume '$VOLUME' skipped (MySQL dump)"
-            return 0
-        fi
-        if [ "$DESTINATION" = "$POSTGRES_LIB_DESTINATION" ]; then
-            echo "Backing up volume '$VOLUME' skipped (Postgres dump)"
-            return 0
-        fi
-    done
 
-    echo "stopping corresponding containers .."
-    for CONTAINER in "${CONTAINERS[@]}"
-    do
-        docker stop $CONTAINER > /dev/null
-        if [ "$?" -ne 0 ]; then
-            echo "[WARN] Could not stop $CONTAINER -> backing up anyway .."
-        fi
-    done 
+    if [ -n "$CONTAINERS" ]; then 
+       
+        #check if mysql lib data - we backup sql dumps, so skip this
+        for CONTAINER in "${CONTAINERS[@]}"
+        do
+            local DESTINATION=$(docker inspect --format "{{ range .Mounts }}{{ if eq .Name \"$VOLUME\" }}{{ .Destination }}{{ end }}{{ end }}" $CONTAINER)
+            if [ "$DESTINATION" = "$MYSQL_LIB_DESTINATION" ]; then
+                echo "Backing up volume '$VOLUME' skipped (MySQL dump)"
+                return 0
+            fi
+            if [ "$DESTINATION" = "$POSTGRES_LIB_DESTINATION" ]; then
+                echo "Backing up volume '$VOLUME' skipped (Postgres dump)"
+                return 0
+            fi
+        done
+
+        echo "stopping linked containers of volume '$VOLUME'  .."
+        for CONTAINER in "${CONTAINERS[@]}"
+        do
+            docker stop $CONTAINER > /dev/null
+            if [ "$?" -ne 0 ]; then
+                echo "[WARN] Could not stop $CONTAINER -> backing up anyway .."
+            fi
+        done
+    fi
 
     echo "Backing up volume '$VOLUME' .."
     docker run --name backup_helper --rm -v $VOLUME:/volume -v $BACKUP_FOLDER:/backups $HELPER_IMAGE sh -c "tar cfz /backups/$VOLUME.tar.gz -C /volume . && chown -R 1000:1000 /backups/$VOLUME.tar.gz"
@@ -359,7 +362,7 @@ chown -R backup:backup "$LATEST_FOLDER/.timestamp"
 
 
 # --- Remove files older than n days --- #
-find $MOUNT_POINT -type f -mtime +5 -name '*tar.gz' | xargs rm -rf
+find $DOCKER_PLATFORM_BACKUPS -type f -mtime +5 -name '*tar.gz' | xargs rm -rf
 
 duration=$(($(date -u +%s)-$BEGIN))
 
