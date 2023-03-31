@@ -69,6 +69,26 @@ function createLogsBackup() {
     fi
 }
 
+function createPostgresBackups() {
+
+    local BACKUP_ROOT=$1
+
+    if [ -z "$POSTGRES_SERVERS" ]; then
+        POSTGRES_SERVERS=($(docker ps -a | grep postgres | awk '{ print $11 }'))
+    else
+        IFS=', ' read -r -a POSTGRES_SERVERS <<< "$POSTGRES_SERVERS"
+    fi
+
+    if [ -z "$POSTGRES_SERVERS" ]; then
+        echo "No postgres containers found"
+    else
+        for POSTGRES_SERVER in "${POSTGRES_SERVERS[@]}"
+        do
+            createPostgresBackup $BACKUP_ROOT $POSTGRES_SERVER
+        done
+    fi
+}
+
 function createPostgresBackup() {
 
     local BACKUP_ROOT=$1
@@ -79,18 +99,38 @@ function createPostgresBackup() {
 
     #TODO: exception handling
 
-    local USER=$(docker exec $POSTGRES_SERVER bash -c 'echo "$POSTGRES_USER"')
-    if [ ! $USER ]; then
-        local USER="postgres"
+    local DB_USER=$(docker exec $POSTGRES_SERVER bash -c 'echo "$POSTGRES_USER"')
+    if [ ! $DB_USER ]; then
+        local DB_USER="postgres"
     fi
 
-    local DATABASES=($(docker exec $POSTGRES_SERVER /usr/local/bin/psql -U $USER -d postgres -t -A -c "SELECT datname FROM pg_database WHERE datname <> ALL ('{template0,template1,postgres}')"))
+    local DATABASES=($(docker exec $POSTGRES_SERVER /usr/local/bin/psql -U $DB_USER -d postgres -t -A -c "SELECT datname FROM pg_database WHERE datname <> ALL ('{template0,template1,postgres}')"))
 
     for DATABASE in "${DATABASES[@]}"
     do
         echo "Backing up database '$DATABASE' of container '$POSTGRES_SERVER' .."
-        docker exec $POSTGRES_SERVER /usr/local/bin/pg_dump -U $USER -F p $DATABASE | gzip -9 > $BACKUP_FOLDER/"$DATABASE".sql.gz
+        docker exec $POSTGRES_SERVER /usr/local/bin/pg_dump -U $DB_USER -F p $DATABASE | gzip -9 > $BACKUP_FOLDER/"$DATABASE".sql.gz
     done
+}
+
+function createMySqlBackups() {
+
+    local BACKUP_ROOT=$1
+
+    if [ -z "$MYSQL_SERVERS" ]; then
+        MYSQL_SERVERS=($(docker ps -a | grep -h "mariadb\|mysql" | awk '{ print $12 }'))
+    else
+        IFS=', ' read -r -a MYSQL_SERVERS <<< "$MYSQL_SERVERS"
+    fi
+
+    if [ -z "$MYSQL_SERVERS" ]; then
+        echo "No Mariadb/MySQL containers found"
+    else
+        for MYSQL_SERVER in "${MYSQL_SERVERS[@]}"
+        do
+            createMySqlBackup $BACKUP_ROOT $MYSQL_SERVER
+        done
+    fi
 }
 
 function createMySqlBackup() {
@@ -155,7 +195,6 @@ function createVolumeBackup() {
             fi
         done
 
-        echo "stopping linked containers of volume '$VOLUME'  .."
         for CONTAINER in "${CONTAINERS[@]}"
         do
             docker stop $CONTAINER > /dev/null
@@ -166,8 +205,84 @@ function createVolumeBackup() {
     fi
 
     echo "Backing up volume '$VOLUME' .."
-    docker run --name backup_helper --rm -v $VOLUME:/volume -v $BACKUP_FOLDER:/backups $HELPER_IMAGE sh -c "tar cfz /backups/$VOLUME.tar.gz -C /volume . && chown -R 1000:1000 /backups/$VOLUME.tar.gz"
+    docker run --name backup_helper --rm -v $VOLUME:/volume -v $BACKUP_FOLDER:/backups $HELPER_IMAGE sh -c "tar cfz /backups/$VOLUME.tar.gz -C /volume . && chown -R $USER:$GROUP /backups/$VOLUME.tar.gz"
 }
+
+function createVolumeBackups(){
+    local BACKUP_ROOT=$1
+    VOLUMES=($(docker volume ls --format '{{.Name}}'))
+    for VOLUME in "${VOLUMES[@]}"
+    do
+        if [[ $VOLUME != buildx_buildkit* ]]; then
+            createVolumeBackup $BACKUP_ROOT $VOLUME
+        fi
+    done
+}
+
+
+function createBackup() {
+
+    echo "" # newline
+    echo "---------------------------------------------------------------"
+    echo "Executing backup script at $(date)"
+
+    # --- packages backups --- #
+    echo "---------------------------------------------------------------"
+    echo "Backing up Docker packages"
+    createPackagesBackup $BACKUP_ROOT $DOCKER_PLATFORM_HOME
+
+    # --- env backup --- #
+    echo "---------------------------------------------------------------"
+    echo "Backing up env files "
+    createEnvBackup $BACKUP_ROOT $DOCKER_PLATFORM_HOME
+
+    # --- logs backup --- #
+    echo "---------------------------------------------------------------"
+    echo "Backing up log files "
+    createLogsBackup $BACKUP_ROOT $DOCKER_PLATFORM_HOME
+
+    # --- mysql dumps --- #
+    echo "---------------------------------------------------------------"
+    echo "Backing up Mariadb/MySQL dumps"
+    createMySqlBackups $BACKUP_ROOT
+
+    # --- postgres dumps --- #
+    echo "---------------------------------------------------------------"
+    echo "Backing up Postgres dumps"
+    createPostgresBackups $BACKUP_ROOT
+
+    # --- get all running containers --- #
+    RUNNING_CONTAINERS=($(docker ps --format "{{.Names}}"))
+
+    # --- volume backups --- #
+    echo "---------------------------------------------------------------"
+    echo "Backing up Docker volumes"
+    createVolumeBackups $BACKUP_ROOT
+
+    # --- restart containers --- #
+    echo "---------------------------------------------------------------"
+    echo "restarting all previously running containers again .."
+    for CONTAINER in "${RUNNING_CONTAINERS[@]}"
+    do
+        # start containers in background
+        docker start $CONTAINER >/dev/null &
+    done
+
+    # --- Setting final permissions and timestamp --- #
+    echo "---------------------------------------------------------------"
+    echo "Setting final permissions and timestamp .."
+    echo $NOW > "$BACKUP_ROOT/.timestamp"
+    chown -R $USER:$GROUP $BACKUP_ROOT
+    find $BACKUP_ROOT -type d -exec chmod 750 '{}' \;
+    find $BACKUP_ROOT -type f -exec chmod 640 '{}' \;
+
+    echo "---------------------------------------------------------------"
+    echo "Finished creating backup content at $(date)"
+}
+
+
+
+
 
 
 
@@ -177,8 +292,11 @@ function createVolumeBackup() {
 ##  ------    EXECUTION STARTS HERE  ---------  ##
 ##                                              ##
 
+BEGIN=$(date -u +%s)
+NOW=$(date +"%Y%m%d_T%H%M%S")
+
 if ! [ $(id -u) = 0 ]; then
-    echo "Must run as root"
+    echo "Must run as root user"
     exit 1
 fi
 
@@ -220,154 +338,53 @@ if [  -z "$NOT_INTERACTIVE" ]; then
     done
 fi
 
-NOW=$(date +"%Y%m%d_T%H%M%S")
 BACKUP_ROOT="$DOCKER_PLATFORM_BACKUPS/$NOW"
-BACKUP_TAR="$BACKUP_ROOT.tar.gz"
+LOG_FILE="$BACKUP_ROOT/.log"
+LATEST_FOLDER="$DOCKER_PLATFORM_BACKUPS/latest"
+BACKUP_EXTENSION="tar.gz"
+BACKUP_ZIP="$BACKUP_ROOT.$BACKUP_EXTENSION"
 HELPER_IMAGE="alpine:3.17.2"
+USER=1000
+GROUP=1000
 
-mkdir -p $BACKUP_ROOT
-chown backup:backup -R $BACKUP_ROOT
+mkdir -p $BACKUP_ROOT && chown $USER:$GROUP $BACKUP_ROOT
 
+createBackup 2>&1 | tee $LOG_FILE
 
-echo "" # newline
-echo "---------------------------------------------------------------"
-echo "Executing backup script at $(date)"
-
-BEGIN=$(date -u +%s)
-
-
-
-
-# --- packages backups --- #
-echo "---------------------------------------------------------------"
-echo "Backing up Docker packages"
-
-createPackagesBackup $BACKUP_ROOT $DOCKER_PLATFORM_HOME
-
-
-
-
-# --- env backup --- #
-echo "---------------------------------------------------------------"
-echo "Backing up env files "
-
-createEnvBackup $BACKUP_ROOT $DOCKER_PLATFORM_HOME
-
-
-
-# --- logs backup --- #
-echo "---------------------------------------------------------------"
-echo "Backing up log files "
-
-createLogsBackup $BACKUP_ROOT $DOCKER_PLATFORM_HOME
-
-
-
-# --- mysql dumps --- #
-echo "---------------------------------------------------------------"
-echo "Backing up Mariadb/MySQL dumps"
-
-if [ -z "$MYSQL_SERVERS" ]; then
-    MYSQL_SERVERS=($(docker ps -a | grep -h "mariadb\|mysql" | awk '{ print $12 }'))
-else
-    IFS=', ' read -r -a MYSQL_SERVERS <<< "$MYSQL_SERVERS"
-fi
-
-if [ -z "$MYSQL_SERVERS" ]; then
-    echo "No Mariadb/MySQL containers found"
-else
-    for MYSQL_SERVER in "${MYSQL_SERVERS[@]}"
-    do
-        echo "Database Server: $MYSQL_SERVER"
-        createMySqlBackup $BACKUP_ROOT $MYSQL_SERVER
-    done
-fi
-
-
-
-# --- postgres dumps --- #
-echo "---------------------------------------------------------------"
-echo "Backing up Postgres dumps"
-
-if [ -z "$POSTGRES_SERVERS" ]; then
-    POSTGRES_SERVERS=($(docker ps -a | grep postgres | awk '{ print $11 }'))
-else
-    IFS=', ' read -r -a POSTGRES_SERVERS <<< "$POSTGRES_SERVERS"
-fi
-
-if [ -z "$POSTGRES_SERVERS" ]; then
-    echo "No postgres containers found"
-else
-    for POSTGRES_SERVER in "${POSTGRES_SERVERS[@]}"
-    do
-        echo "Database Server: $POSTGRES_SERVER"
-        createPostgresBackup $BACKUP_ROOT $POSTGRES_SERVER
-    done
-fi
-
-
-
-# --- volume backups --- #
-echo "---------------------------------------------------------------"
-echo "Backing up Docker volumes"
-
-#get all running containers
-RUNNING_CONTAINERS=($(docker ps --format "{{.Names}}"))
-
-VOLUMES=($(docker volume ls --format '{{.Name}}'))
-for VOLUME in "${VOLUMES[@]}"
-do
-    if [[ $VOLUME != buildx_buildkit* ]]; then
-        createVolumeBackup $BACKUP_ROOT $VOLUME
-    fi
-done
-
-
-# --- restart containers --- #
-echo "---------------------------------------------------------------"
-echo "restarting all previously running containers again .."
-for CONTAINER in "${RUNNING_CONTAINERS[@]}"
-do
-    # start containers in background
-    docker start $CONTAINER >/dev/null &
-done
+#log this only to the logfile
+echo "---------------------------------------------------------------"  >> $LOG_FILE 
+echo "" >> $LOG_FILE  #newline
 
 
 
 # --- Put everything into one big tar ball --- #
 echo "---------------------------------------------------------------"
 echo "Compressing.."
-CURRENT_DIR=$PWD
-chown -R backup:backup $BACKUP_ROOT
-find $BACKUP_ROOT -type d -exec chmod 750 '{}' \;
-find $BACKUP_ROOT -type f -exec chmod 640 '{}' \;
-cd $BACKUP_ROOT
-tar czf $BACKUP_TAR .
-cd $CURRENT_DIR
-chown -R backup:backup $BACKUP_TAR
-find $BACKUP_TAR -type d -exec chmod 750 '{}' \;
-find $BACKUP_TAR -type f -exec chmod 640 '{}' \;
+pushd $BACKUP_ROOT > /dev/null
+tar czf $BACKUP_ZIP .  > /dev/null
+if [ "$?" -ne 0 ]; then
+    echo "Error while compressing the backup file"
+fi
+popd > /dev/null
+chown -R $USER:$GROUP $BACKUP_ZIP
+chmod -R 640 $BACKUP_ZIP
 
 
 
 # --- Clean Up, link latest backup files--- #
 echo "---------------------------------------------------------------"
 echo "Cleanup.."
-LATEST_FOLDER="$DOCKER_PLATFORM_BACKUPS/latest"
 rm -rf $LATEST_FOLDER
 mv $BACKUP_ROOT $LATEST_FOLDER
-echo $NOW > "$LATEST_FOLDER/.timestamp"
-chown -R backup:backup "$LATEST_FOLDER/.timestamp"
+
+# --- Remove files older than 5 days --- #
+find $DOCKER_PLATFORM_BACKUPS -type f -mtime +5 -name "*.$BACKUP_EXTENSION" | xargs rm -rf
 
 
-
-# --- Remove files older than n days --- #
-find $DOCKER_PLATFORM_BACKUPS -type f -mtime +5 -name '*tar.gz' | xargs rm -rf
 
 duration=$(($(date -u +%s)-$BEGIN))
-
 echo "---------------------------------------------------------------"
 echo "Timestamp $(date)"
-echo "Done - took $(($duration / 60)) minutes and $(($duration % 60)) seconds"
+echo "Finished Backup - took $(($duration / 60)) minutes and $(($duration % 60)) seconds"
 echo "---------------------------------------------------------------"
 echo "" #newline
