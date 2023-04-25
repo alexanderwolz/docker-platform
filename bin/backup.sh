@@ -74,7 +74,7 @@ function createPostgresBackups() {
     local BACKUP_ROOT=$1
 
     if [ -z "$POSTGRES_SERVERS" ]; then
-        POSTGRES_SERVERS=($(docker ps -a | grep postgres | awk '{ print $11 }'))
+        POSTGRES_SERVERS=($(docker ps --format "{{.ID}} {{.Image}} {{.Names}}" | grep -h "postgres" | awk '{ print $3 }'))
     else
         IFS=', ' read -r -a POSTGRES_SERVERS <<< "$POSTGRES_SERVERS"
     fi
@@ -118,7 +118,7 @@ function createMySqlBackups() {
     local BACKUP_ROOT=$1
 
     if [ -z "$MYSQL_SERVERS" ]; then
-        MYSQL_SERVERS=($(docker ps -a | grep -h "mariadb\|mysql" | awk '{ print $12 }'))
+        MYSQL_SERVERS=($(docker ps --format "{{.ID}} {{.Image}} {{.Names}}" | grep -h "mariadb\|mysql" | awk '{ print $3 }'))
     else
         IFS=', ' read -r -a MYSQL_SERVERS <<< "$MYSQL_SERVERS"
     fi
