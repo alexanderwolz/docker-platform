@@ -19,6 +19,7 @@ function restorePackageFolder() {
         mkdir -p $LOCAL_PGK_DIR
         echo "Extracting package content to $LOCAL_PGK_DIR"
         tar -zxf "$TMP_FOLDER/$PACKAGE_ZIP" -C $LOCAL_PGK_DIR
+        chown -R 1000:1000 $LOCAL_PGK_DIR
     else
         echo "Could not extract package zip $PACKAGE_ZIP!"
         return 1
