@@ -1,5 +1,12 @@
 # Docker Platform
 
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/alexanderwolz/DockerPlatform)
+![GitHub](https://img.shields.io/badge/docker-23.0.1-orange)
+![GitHub](https://img.shields.io/badge/docker_compose-1.29.2-orange)
+![GitHub](https://img.shields.io/github/license/alexanderwolz/DockerPlatform)
+![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/alexanderwolz/DockerPlatform)
+![GitHub all releases](https://img.shields.io/github/downloads/alexanderwolz/DockerPlatform/total?color=informational)
+
 ## Introduction
 
 Platform for easy management of Docker Containers on
