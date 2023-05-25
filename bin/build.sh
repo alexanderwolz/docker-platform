@@ -33,13 +33,13 @@ REGISTRY_CONFIG="$LOCAL_CONFIG_DIR/registry.conf"
 
 . $REGISTRY_CONFIG >/dev/null 2>&1
 if [ "$?" -ne 0 ]; then
-    echo "Please create '$REGISTRY_CONFIG' before using this script!"
-    exit 1
+    echo "Warning: ../config/registry.conf not found, create file before using this script!"
 fi
 
+#TODO check namespace and registry and ask to proceed if registry is empty
+
 if [ -z "$DOCKER_REGISTRY" ]; then
-    echo "Could not retrieve DOCKER_REGISTRY from '$REGISTRY_CONFIG', please check file"
-    exit 1
+    echo "DOCKER_REGISTRY not set, using default (registry.hub.docker.com)"
 fi
 
 
@@ -136,7 +136,16 @@ if [ -z "$TAG" ]; then
     TAG=$VERSION
 fi
 
-TARGET_NAME="$DOCKER_REGISTRY/$IMAGE_NAME:$TAG"
+if [ ! -z "$DOCKER_REGISTRY" ]; then
+    TARGET_NAME+="$DOCKER_REGISTRY/"
+fi
+
+if [ ! -z "$DOCKER_NAMESPACE" ]; then
+    TARGET_NAME+="$DOCKER_NAMESPACE/"
+fi
+
+TARGET_NAME+="$IMAGE_NAME:$TAG"
+
 
 echo "Building $BUILD_TYPE project: $IMAGE_NAME v$VERSION (TAG: $TAG)"
 
