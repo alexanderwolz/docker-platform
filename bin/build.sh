@@ -8,7 +8,7 @@ function printHelpMenu(){
     echo "----------------------------"
     echo "  -a build for current arch"
     echo "  -e pull existing image"
-    echo "  -l tag as lates"
+    echo "  -l tag also as latest"
     echo "  -p push image to registry"
     echo "  -r rebuild existing image"
     echo "----------------------------"
@@ -56,7 +56,7 @@ while getopts aelprh opt; do
         PULL_EXISTING=1
         ;;
     l)
-        TAG="latest"
+        LATEST=1
         ;;
     p)
         PUSH_IMAGE=1
@@ -132,19 +132,17 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-if [ -z "$TAG" ]; then
-    TAG=$VERSION
-fi
-
 if [ ! -z "$DOCKER_REGISTRY" ]; then
-    TARGET_NAME+="$DOCKER_REGISTRY/"
+    REPO+="$DOCKER_REGISTRY/"
 fi
 
 if [ ! -z "$DOCKER_NAMESPACE" ]; then
-    TARGET_NAME+="$DOCKER_NAMESPACE/"
+    REPO+="$DOCKER_NAMESPACE/"
 fi
 
-TARGET_NAME+="$IMAGE_NAME:$TAG"
+TAG="$VERSION"
+TARGET_NAME="$REPO$IMAGE_NAME:$TAG"
+TARGET_NAME_LATEST="$REPO$IMAGE_NAME:latest"
 
 
 echo "Building $BUILD_TYPE project: $IMAGE_NAME v$VERSION (TAG: $TAG)"
@@ -194,38 +192,65 @@ if [ ! -z "$CURRENT_ARCH" ]; then
         echo "[ERROR] Docker build unsuccessful!"
         exit 1
     fi
-    if [[ $TAG != "latest" && $TAG != "0.0.0" ]]; then
+    if [ ! -z "$PUSH_IMAGE" ]; then
         echo "pushing image to $TARGET_NAME"
         docker push $TARGET_NAME
-    fi
-    if [ "$?" -ne 0 ]; then
-        echo "[ERROR] Docker push unsuccessful!"
-        exit 1
+        if [ "$?" -ne 0 ]; then
+            echo "[ERROR] Docker push unsuccessful!"
+            exit 1
+        fi
+        if [ ! -z "$LATEST" ]; then
+            echo "pushing image to $TARGET_NAME_LATEST"
+            docker tag $TARGET_NAME $TARGET_NAME_LATEST
+            docker push $TARGET_NAME_LATEST
+            if [ "$?" -ne 0 ]; then
+                echo "[ERROR] Docker push unsuccessful!"
+                exit 1
+            fi
+        fi
     fi
 else
     #multiarch builds
     echo "Creating buildx container.."
     BUILDER_NAME="multiarch"
+    CACHE_FOLDER="$PARENT_DIR/.buildx_cache"
+    rm -rf $CACHE_FOLDER
     docker buildx rm $BUILDER_NAME > /dev/null
     docker buildx create --platform "linux/amd64,linux/arm64" --name $BUILDER_NAME --use > /dev/null
     OPTIONS=""
+    OPTIONS+=" --cache-from=type=local,src=$CACHE_FOLDER"
+    OPTIONS+=" --cache-to=type=local,dest=$CACHE_FOLDER"
     if [ ! -z "$PUSH_IMAGE" ]; then
-        if [[ $TAG != "latest" && $TAG != "0.0.0" ]]; then
-            echo "Setting push to $TARGET_NAME"
-            OPTIONS+="--push"
-        else
-            echo "Skipped push (invalid tag)"
+        OPTIONS+=" --push"
+        echo "Setting push to $TARGET_NAME"
+        if [ ! -z "$LATEST" ]; then
+            echo "Setting push to $TARGET_NAME_LATEST"
         fi
+    else
+        echo "Skipped push"
     fi
-    echo "Building image for amd64 and arm64 (host: $(uname -m)).."
-    docker buildx build --platform linux/amd64,linux/arm64 $OPTIONS -t $TARGET_NAME $BUILD_FOLDER
+    echo "Building image for amd64 and arm64 (host: $(uname -m)).. (tag: $TAG)"
+    docker buildx build --platform linux/amd64,linux/arm64 $OPTIONS  -t $TARGET_NAME $BUILD_FOLDER
     if [ "$?" -ne 0 ]; then
         echo "[ERROR] Docker command unsuccessful!"
         docker buildx rm $BUILDER_NAME > /dev/null
         exit 1
     fi
+
+    if [ ! -z "$LATEST" ]; then
+        echo "Building image for amd64 and arm64 (host: $(uname -m)).. (tag: latest)"
+        docker buildx build --platform linux/amd64,linux/arm64 $OPTIONS -t $TARGET_NAME_LATEST $BUILD_FOLDER
+        if [ "$?" -ne 0 ]; then
+            echo "[ERROR] Docker command unsuccessful!"
+            docker buildx rm $BUILDER_NAME > /dev/null
+            exit 1
+        fi
+    fi
+
     echo "Cleaning up buildx container.."
     docker buildx rm $BUILDER_NAME > /dev/null
+    echo "Cleaning up cache.."
+    rm -rf $CACHE_FOLDER
 fi
 
 BUILD_TIME=$(($(date +%s) - $BEGIN))
