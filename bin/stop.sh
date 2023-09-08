@@ -23,9 +23,9 @@ function doStop(){
     #TODO: only restart or tear down and up again?
     echo "Tearing down compose.."
     if [ -f $ENV_FILE ]; then
-        docker-compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE down $COMMAND
+        docker compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE down $COMMAND
     else
-        docker-compose -p $NAME -f $COMPOSE_FILE down $COMMAND
+        docker compose -p $NAME -f $COMPOSE_FILE down $COMMAND
     fi
     if [ "$?" -ne 0 ]; then
         echo "Error while stopping compose.."

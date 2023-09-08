@@ -40,9 +40,9 @@ function doRun(){
         #TODO: only restart or tear down and up again?
         echo "Tearing down compose.."
         if [ -f $ENV_FILE ]; then
-            docker-compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE down $COMMAND
+            docker compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE down $COMMAND
         else
-            docker-compose -p $NAME -f $COMPOSE_FILE down $COMMAND
+            docker compose -p $NAME -f $COMPOSE_FILE down $COMMAND
         fi
         if [ "$?" -ne 0 ]; then
             echo "Error while stopping compose.."
@@ -65,9 +65,9 @@ function doRun(){
     if [ $BUILD ]; then
         echo "rebuilding images .."
         if [ -f $ENV_FILE ]; then
-            docker-compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE build
+            docker compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE build
         else
-            docker-compose -p $NAME -f $COMPOSE_FILE build
+            docker compose -p $NAME -f $COMPOSE_FILE build
         fi
 
         if [ "$?" -ne 0 ]; then
@@ -78,9 +78,9 @@ function doRun(){
     if [ $PULL_IMAGE ]; then
         echo "pulling images .."
         if [ -f $ENV_FILE ]; then
-            docker-compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE pull
+            docker compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE pull
         else
-            docker-compose -p $NAME -f $COMPOSE_FILE pull
+            docker compose -p $NAME -f $COMPOSE_FILE pull
         fi
 
         if [ "$?" -ne 0 ]; then
@@ -90,9 +90,9 @@ function doRun(){
 
     echo "Starting up compose.."
     if [ -f $ENV_FILE ]; then
-        docker-compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE up -d
+        docker compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE up -d
     else
-        docker-compose -p $NAME -f $COMPOSE_FILE up -d
+        docker compose -p $NAME -f $COMPOSE_FILE up -d
     fi
     if [ "$?" -ne 0 ]; then
         echo "Error while starting up compose.."

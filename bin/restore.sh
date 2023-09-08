@@ -111,9 +111,9 @@ function restore() {
         #shut down old service package containers first
         echo "Tearing down current package '$NAME' .."
         if [ -f $ENV_FILE ]; then
-            docker-compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE down --remove-orphans 
+            docker compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE down --remove-orphans 
         else
-            docker-compose -p $NAME -f $COMPOSE_FILE down --remove-orphans
+            docker compose -p $NAME -f $COMPOSE_FILE down --remove-orphans
         fi
         if [ "$?" -ne 0 ]; then
             echo "Current package could not be stopped. Aborting"
@@ -121,7 +121,7 @@ function restore() {
         fi
 
         echo "Removing existing volumes .."
-        local VOLUME_NAMES=($(docker-compose -f $COMPOSE_FILE config --volumes))
+        local VOLUME_NAMES=($(docker compose -f $COMPOSE_FILE config --volumes))
 
         for VOLUME_NAME in "${VOLUME_NAMES[@]}"
         do
@@ -165,11 +165,11 @@ function restore() {
     #create service containers and volumes
     echo "Creating containers and volumes for package '$NAME' .."
     if [ -f $ENV_FILE ]; then
-        docker-compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE up --no-start
+        docker compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE up --no-start
     else
-        docker-compose -p $NAME -f $COMPOSE_FILE up --no-start
+        docker compose -p $NAME -f $COMPOSE_FILE up --no-start
     fi
-    local CONTAINER_IDS=($(docker-compose -f $COMPOSE_FILE ps -q))
+    local CONTAINER_IDS=($(docker compose -f $COMPOSE_FILE ps -q))
     if [[ ${#CONTAINER_IDS[@]} -eq 0 ]]; then
         echo "Compose does not have any containers, aborting"
         HAS_ERROR=true
