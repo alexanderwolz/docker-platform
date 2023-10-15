@@ -8,15 +8,17 @@ function initialize() {
         echo "  INITIALIZATION MODE"
         echo ""
         echo "  Running containers and images will be deleted."
-        echo "  Base folder '$REMOTE_BASE_FOLDER' will be deleted!"
-        echo "  Please consider taking backups before execution!"
+        echo "  Base folder '$REMOTE_BASE_FOLDER' and '$REMOTE_BACKUP_FOLDER' will be deleted!"
+        echo "  Please consider taking local backups before execution!"
         echo ""
         read -p "Do you wish to initialize platform to $REMOTE_HOST? [y/n] " selection
         case $selection in
         [y]*)
 
             echo "-----------------------------------"
-            echo "Pruning docker engine .."
+            echo "Stopping running containers"
+            ssh $REMOTE $SSH_OPTS 'docker stop $(docker ps -aq) 2>/dev/null || echo "No running containers"'
+            echo "Pruning docker engine (remove stopped and unused resources).."
             ssh $REMOTE $SSH_OPTS 'docker system prune -a -f'
             if [ "$?" -ne 0 ]; then
                 exit 1
@@ -24,37 +26,34 @@ function initialize() {
 
             echo "-----------------------------------"
             echo "Deleting base folders .."
-            ssh $REMOTE $SSH_OPTS "rm -rf $REMOTE_BASE_FOLDER"
-
-            echo "-----------------------------------"
-            echo "Creating folders in '$REMOTE_BASE_FOLDER' .."
-            ssh $REMOTE $SSH_OPTS "mkdir -p $REMOTE_BASE_FOLDER"
+            ssh $REMOTE $SSH_OPTS "rm -rf $REMOTE_BASE_FOLDER $REMOTE_BACKUP_FOLDER"
             if [ "$?" -ne 0 ]; then
                 USER_ID=$(ssh $REMOTE $SSH_OPTS id -u)
                 echo "trying again with super user:"
-                ssh $REMOTE $SSH_OPTS -t "sudo mkdir -p $REMOTE_BASE_FOLDER && sudo chown $USER_ID:$USER_ID -R $REMOTE_BASE_FOLDER"
+                ssh $REMOTE $SSH_OPTS -t "sudo rm -rf $REMOTE_BASE_FOLDER $REMOTE_BACKUP_FOLDER"
             fi
             if [ "$?" -ne 0 ]; then
-                echo "Error: Could not create base folder!"
+                echo "Error: Could not delete base folders!"
                 exit 1
             fi
 
+            echo "-----------------------------------"
+            echo "Creating base folders '$REMOTE_BASE_FOLDER' and '$REMOTE_BACKUP_FOLDER' .."
+            ssh $REMOTE $SSH_OPTS "mkdir -p $REMOTE_BASE_FOLDER $REMOTE_BACKUP_FOLDER"
+            if [ "$?" -ne 0 ]; then
+                USER_ID=$(ssh $REMOTE $SSH_OPTS id -u)
+                echo "trying again with super user:"
+                ssh $REMOTE $SSH_OPTS -t "sudo mkdir -p $REMOTE_BASE_FOLDER $REMOTE_BACKUP_FOLDER && sudo chown $USER_ID:$USER_ID -R $REMOTE_BASE_FOLDER $REMOTE_BACKUP_FOLDER"
+            fi
+            if [ "$?" -ne 0 ]; then
+                echo "Error: Could not create base folders!"
+                exit 1
+            fi
+
+            echo "Creating subfolders in '$REMOTE_BASE_FOLDER' .."
             ssh $REMOTE $SSH_OPTS "mkdir -p $REMOTE_PACKAGES_FOLDER && mkdir -p $REMOTE_SCRIPTS_FOLDER && mkdir -p $REMOTE_ENV_FOLDER && mkdir -p $REMOTE_ETC_FOLDER"
             if [ "$?" -ne 0 ]; then
                 echo "Error: Could not create remote folders!"
-                exit 1
-            fi
-
-            echo "-----------------------------------"
-            echo "Creating backup folder in '$REMOTE_BACKUP_FOLDER' .."
-            ssh $REMOTE $SSH_OPTS "mkdir -p $REMOTE_BACKUP_FOLDER"
-            if [ "$?" -ne 0 ]; then
-                USER_ID=$(ssh $REMOTE $SSH_OPTS id -u)
-                echo "trying again with super user:"
-                ssh $REMOTE $SSH_OPTS -t "sudo mkdir -p $REMOTE_BACKUP_FOLDER && sudo chown $USER_ID:$USER_ID -R $REMOTE_BACKUP_FOLDER"
-            fi
-            if [ "$?" -ne 0 ]; then
-                echo "Error: Could not create backup folder at $REMOTE_BACKUP_FOLDER!"
                 exit 1
             fi
 
@@ -70,29 +69,51 @@ function initialize() {
                 exit 1
             fi
 
-            ssh $REMOTE $SSH_OPTS "echo 'Add {PKG_NAME}.env into this folder to automatically use env file on startup' > $REMOTE_ENV_FOLDER/Readme.txt"
-
             echo "-----------------------------------"
-            echo "Copying platform packages to '$REMOTE_PACKAGES_FOLDER' .."
-            rsync -avzPL -e "ssh $SSH_OPTS" $PACKAGES_DIR/* "$REMOTE:$REMOTE_PACKAGES_FOLDER"
+            ssh $REMOTE $SSH_OPTS "source ~/.profile && bash $REMOTE_SCRIPTS_FOLDER/networks.sh"
             if [ "$?" -ne 0 ]; then
                 exit 1
             fi
 
             echo "-----------------------------------"
-            echo "Creating symbolic links to environment files .."
-            for PACKAGE in ls $PACKAGES_DIR/*; do
-                if [ -f "$PACKAGE/$FILE_NAME_PACKAGE_DESC" ]; then
-                PKG_NAME=$(basename $PACKAGE)
-                    ssh $REMOTE $SSH_OPTS "ln -sf $REMOTE_ENV_FOLDER/$PKG_NAME.env $REMOTE_PACKAGES_FOLDER/$PKG_NAME/.env"
-                fi
-            done
+            echo "Platform basics are initialized."
 
             while true; do
-                read -p "Do you wish to start all packages? [y/n] " selection
+                read -p "Do you wish to copy all packages? [y/n] " selection
                 case $selection in
                 [y]*)
-                    ssh $REMOTE $SSH_OPTS "bash $REMOTE_SCRIPTS_FOLDER/run.sh -ta"
+                    ssh $REMOTE $SSH_OPTS "echo 'Add {PKG_NAME}.env into this folder to automatically use env file on startup' > $REMOTE_ENV_FOLDER/Readme.txt"
+
+                    echo "-----------------------------------"
+                    echo "Copying platform packages to '$REMOTE_PACKAGES_FOLDER' .."
+                    rsync -avzPL -e "ssh $SSH_OPTS" $PACKAGES_DIR/* "$REMOTE:$REMOTE_PACKAGES_FOLDER"
+                    if [ "$?" -ne 0 ]; then
+                        exit 1
+                    fi
+
+                    echo "-----------------------------------"
+                    echo "Creating symbolic links to environment files .."
+                    for PACKAGE in ls $PACKAGES_DIR/*; do
+                        if [ -f "$PACKAGE/$FILE_NAME_PACKAGE_DESC" ]; then
+                        PKG_NAME=$(basename $PACKAGE)
+                            ssh $REMOTE $SSH_OPTS "ln -sf $REMOTE_ENV_FOLDER/$PKG_NAME.env $REMOTE_PACKAGES_FOLDER/$PKG_NAME/.env"
+                        fi
+                    done
+
+                    while true; do
+                        read -p "Do you wish to start all packages? [y/n] " selection
+                        case $selection in
+                        [y]*)
+                            ssh $REMOTE $SSH_OPTS "bash $REMOTE_SCRIPTS_FOLDER/run.sh -ta"
+                            break
+                            ;;
+                        [n]*)
+                            break
+                            ;;
+                        *) echo "Please answer y or n." ;;
+                        esac
+                    done
+
                     break
                     ;;
                 [n]*)
@@ -104,9 +125,8 @@ function initialize() {
 
             echo "-----------------------------------"
             echo "Initializing was successful!"
-            exit 0
             echo "-----------------------------------"
-            echo ""
+            exit 0
             ;;
         [n]*)
             exit 1

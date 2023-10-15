@@ -98,7 +98,7 @@ function restore() {
     echo "checking package file .."
     local PACKAGE_FOLDER="packages/$PACKAGE_NAME"
     local PACKAGE_ZIP="$PACKAGE_FOLDER.tar.gz"
-    tar -tvf $BACKUP_FILE ./$PACKAGE_ZIP >/dev/null 2>&1
+    tar -ztvf $BACKUP_FILE ./$PACKAGE_ZIP >/dev/null 2>&1
     if [ "$?" -ne 0 ]; then
         echo "Package is not part of that backup file, aborting.."
         rm -rf $TMP_FOLDER
