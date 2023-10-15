@@ -27,31 +27,39 @@ function restorePackageFolder() {
 
 }
 
-function restoreEnvFile(){
+function restoreEnvFile() {
     local PACKAGE_NAME=$1
-    local ENV_FILE="env/$PACKAGE_NAME.env"
-    local ENV_ZIP="$ENV_FILE.tar.gz"
+    local ENV_ZIP="env/$PACKAGE_NAME.env.tar.gz"
+    local TARGET_DIR="$PARENT_DIR/env"
+    local TARGET_ENV="$TARGET_DIR/$PACKAGE_NAME.env"
 
-    if [ -f "$PARENT_DIR/$ENV_FILE" ]; then
-        now=$(date +"%Y%m%d")
-        echo "Backing up existing env file for '$PACKAGE_NAME'"
-        mv "$PARENT_DIR/$ENV_FILE" "$PARENT_DIR/$ENV_FILE.$now.bak"
+    echo "Restoring env file .."
+
+    if [ -f "$TARGET_ENV" ]; then
+        local NOW=$(date +"%Y%m%dT%H%M%S")
+        local BACKUP_ENV="$TARGET_ENV.$NOW.bak"
+        echo "Backing up existing env file for '$PACKAGE_NAME' into $BACKUP_ENV"
+        mv $TARGET_ENV $BACKUP_ENV
+        chown 1000:1000 $BACKUP_ENV
     fi
 
     tar -tvf $BACKUP_FILE ./$ENV_ZIP >/dev/null 2>&1
     if [ "$?" -eq 0 ]; then
-        echo "Restoring env file for '$PACKAGE_NAME'"
+        echo "Restoring env file for '$PACKAGE_NAME' into $TARGET_DIR/$PACKAGE_NAME.env"
         
         pushd $TMP_FOLDER > /dev/null
         tar -zxf $BACKUP_FILE "./$ENV_ZIP"
         popd > /dev/null
 
         if [ -f "$TMP_FOLDER/$ENV_ZIP" ]; then
-            tar -zxf "$TMP_FOLDER/$ENV_ZIP" -C "$PARENT_DIR/env"
+            tar -zxf "$TMP_FOLDER/$ENV_ZIP" -C $TARGET_DIR
+            chown 1000:1000 $TARGET_ENV
         else
             echo "Could not extract env zip $ENV_ZIP!"
             return 1
         fi
+    else
+        echo "Backup does not contain an env file for package: '$PACKAGE_NAME'"
     fi
 }
 
@@ -100,82 +108,116 @@ function restore() {
     echo "Checking local package folder.."
     loadPackageFromArgs $PACKAGE_NAME >/dev/null 2>&1
     local PACKAGE_EXISTS=$?
-
-    #edge case: if package folder does not exist but the containers are started
     local VOLUME_DEPENDENCIES=()
     local HAS_ERROR=false
     local MYSQL_SERVERS=()
     local POSTGRES_SERVERS=()
 
-    if [ $PACKAGE_EXISTS ]; then
-        #shut down old service package containers first
-        echo "Tearing down current package '$NAME' .."
-        if [ -f $ENV_FILE ]; then
-            docker compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE down --remove-orphans 
-        else
-            docker compose -p $NAME -f $COMPOSE_FILE down --remove-orphans
-        fi
-        if [ "$?" -ne 0 ]; then
-            echo "Current package could not be stopped. Aborting"
-            return 1
-        fi
-
-        echo "Removing existing volumes .."
-        local VOLUME_NAMES=($(docker compose -f $COMPOSE_FILE config --volumes))
-
-        for VOLUME_NAME in "${VOLUME_NAMES[@]}"
-        do
-            local VOLUME="$NAME"_"$VOLUME_NAME"
-            docker volume rm $VOLUME >/dev/null 2>&1
-            if [ "$?" -ne 0 ]; then
-                echo "Volume $VOLUME could not be removed (dependencies?)"
-                local BOUND_RUNNING_CONTAINER_IDS=($(docker ps -q --filter volume=$VOLUME))
-                for CONTAINER_ID  in "${BOUND_RUNNING_CONTAINER_IDS[@]}"
-                do
-                    local PROJECT=$(docker inspect --format='{{index .Config.Labels "com.docker.compose.project"}}' $CONTAINER_ID)
-                    if [ "$PROJECT" != "$NAME" ]; then
-                        local CONTAINER_NAME=$(docker inspect --format '{{.Name}}' $CONTAINER_ID | cut -c2-)
-                        VOLUME_DEPENDENCIES+=("$CONTAINER_NAME")
-                    fi
-                done
-            fi
-        done
-        if [ ${#VOLUME_DEPENDENCIES[@]} -gt 0 ]; then
-            echo "Stopping running volume dependencies, stopping .."
-            for CONTAINER in "${VOLUME_DEPENDENCIES[@]}"
-            do
-                docker stop $CONTAINER
-            done
-        fi
-    fi
-
-    restorePackageFolder $PACKAGE_NAME
-    if [ ! $PACKAGE_EXISTS ]; then
+    if [ "$PACKAGE_EXISTS" -ne 0 ]; then
+        # restore package folder with backup if it does not exist yet (edge case)
+        echo "Package $PACKAGE_NAME does not exist in package folder, restoring .." 
+        restorePackageFolder $PACKAGE_NAME
         loadPackageFromArgs $PACKAGE_NAME
         if [ "$?" -ne 0 ]; then
             echo "Error wile restoring package"
             rm -rf $TMP_FOLDER
             return 1
         fi
+        #restore ENV files
+        restoreEnvFile $PACKAGE_NAME
+        if [ "$?" -ne 0 ]; then
+            echo "Error wile restoring env file"
+            return 1
+        fi
     fi
 
-    #restore ENV files
-    restoreEnvFile $NAME
+
+    #INFO: $NAME, COMPOSE_FILE, $ENV_FILE haven been sourced by docker.pkd file (loadPackageFromArgs)
+
+    #shut down old package containers first..
+    echo "Tearing down package '$NAME' .."
+    if [ -f $ENV_FILE ]; then
+        docker compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE down --remove-orphans 
+    else
+        docker compose -p $NAME -f $COMPOSE_FILE down --remove-orphans
+    fi
+    if [ "$?" -ne 0 ]; then
+        echo "Current package could not be stopped. Aborting"
+        return 1
+    fi
+
+    echo "Removing existing volumes .."
+    local VOLUME_NAMES=($(docker compose -f $COMPOSE_FILE config --volumes))
+
+    for VOLUME_NAME in "${VOLUME_NAMES[@]}"
+    do
+        local VOLUME="$NAME"_"$VOLUME_NAME"
+        docker volume inspect $VOLUME >/dev/null 2>&1
+        if [ "$?" -ne 0 ]; then
+            continue #volume does not exist locally yet
+        fi
+        docker volume rm $VOLUME >/dev/null 2>&1
+        if [ "$?" -ne 0 ]; then
+            echo "Volume $VOLUME could not be removed (dependencies?)"
+            local BOUND_RUNNING_CONTAINER_IDS=($(docker ps -q --filter volume=$VOLUME))
+            for CONTAINER_ID  in "${BOUND_RUNNING_CONTAINER_IDS[@]}"
+            do
+                local PROJECT=$(docker inspect --format='{{index .Config.Labels "com.docker.compose.project"}}' $CONTAINER_ID)
+                if [ "$PROJECT" != "$NAME" ]; then
+                    local CONTAINER_NAME=$(docker inspect --format '{{.Name}}' $CONTAINER_ID | cut -c2-)
+                    VOLUME_DEPENDENCIES+=("$CONTAINER_NAME")
+                fi
+            done
+        fi
+    done
+    if [ ${#VOLUME_DEPENDENCIES[@]} -gt 0 ]; then
+        echo "Stopping running volume dependencies, stopping .."
+        for CONTAINER in "${VOLUME_DEPENDENCIES[@]}"
+        do
+            docker stop $CONTAINER
+        done
+    fi
+
+    if [ "$PACKAGE_EXISTS" -eq 0 ]; then
+        # restore package folder with folder from backup zip if it has been existing before (default case)
+        restorePackageFolder $PACKAGE_NAME
+        loadPackageFromArgs $PACKAGE_NAME
+        if [ "$?" -ne 0 ]; then
+            echo "Error wile restoring package"
+            rm -rf $TMP_FOLDER
+            return 1
+        fi
+        #restore ENV files
+        restoreEnvFile $PACKAGE_NAME
+        if [ "$?" -ne 0 ]; then
+            echo "Error wile restoring env file"
+            return 1
+        fi
+    fi
 
     #create service containers and volumes
     echo "Creating containers and volumes for package '$NAME' .."
     if [ -f $ENV_FILE ]; then
         docker compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE up --no-start
+        if [ "$?" -ne 0 ]; then
+            return 1
+        fi
+        local CONTAINER_IDS=($(docker compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE ps -aq))
     else
         docker compose -p $NAME -f $COMPOSE_FILE up --no-start
+        if [ "$?" -ne 0 ]; then
+            return 1
+        fi
+        local CONTAINER_IDS=($(docker compose -p $NAME -f $COMPOSE_FILE ps -aq))
     fi
-    local CONTAINER_IDS=($(docker compose -f $COMPOSE_FILE ps -q))
     if [[ ${#CONTAINER_IDS[@]} -eq 0 ]]; then
         echo "Compose does not have any containers, aborting"
         HAS_ERROR=true
     fi
 
     #restore volumes
+    echo "---------------------------------------------------------------"
+    echo "Restoring container volumes.."
     for CONTAINER_ID in "${CONTAINER_IDS[@]}"
     do  
         local CONTAINER=$(docker inspect --format="{{.Name}}" $CONTAINER_ID | cut -c2-)
@@ -184,7 +226,8 @@ function restore() {
         echo "Restoring container '$CONTAINER'"
 
         if [[ ${#VOLUMES[@]} -eq 0 ]]; then
-            echo -e "This container does not have any Docker volumes\n"
+            echo "This container does not have any Docker volumes specified"
+            continue
         fi
 
         for VOLUME in "${VOLUMES[@]}"
@@ -218,7 +261,7 @@ function restore() {
 
             local VOLUME_ZIP="/volumes/$VOLUME.tar.gz"
             pushd $TMP_FOLDER > /dev/null
-            tar -zxvf $BACKUP_FILE ".$VOLUME_ZIP"
+            tar -zxf $BACKUP_FILE ".$VOLUME_ZIP"
             popd > /dev/null
 
             if [ -f "$TMP_FOLDER/$VOLUME_ZIP" ]; then
@@ -234,9 +277,7 @@ function restore() {
     done
 
     if [[ ${MYSQL_SERVERS[@]} ]]; then
-        echo "---------------------------------------------------------------"
         echo "We found MySQL/MariaDB instances, starting SQL restore process .."
-        echo "---------------------------------------------------------------"
     fi
 
     for MYSQL_SERVER in "${MYSQL_SERVERS[@]}"
@@ -249,7 +290,7 @@ function restore() {
         local MYSQL_SERVER_FOLDER="mysql/$MYSQL_SERVER"
 
         pushd $TMP_FOLDER > /dev/null
-        tar -zxvf $BACKUP_FILE "./$MYSQL_SERVER_FOLDER"
+        tar -zxf $BACKUP_FILE "./$MYSQL_SERVER_FOLDER"
         popd > /dev/null
         if [ -d "$TMP_FOLDER/$MYSQL_SERVER_FOLDER" ]; then
             local ROOT_PW=$(docker exec $MYSQL_SERVER bash -c 'echo "$MARIADB_ROOT_PASSWORD"')
@@ -278,9 +319,7 @@ function restore() {
 
 
     if [[ ${POSTGRES_SERVERS[@]} ]]; then
-        echo "---------------------------------------------------------------"
         echo "We found Postgres instances, starting SQL restore process .."
-        echo "---------------------------------------------------------------"
     fi
 
     for POSTGRES_SERVER in "${POSTGRES_SERVERS[@]}"
@@ -298,7 +337,7 @@ function restore() {
         fi
 
         pushd $TMP_FOLDER > /dev/null
-        tar -zxvf $BACKUP_FILE "./$POSTGRES_SERVER_FOLDER"
+        tar -zxf $BACKUP_FILE "./$POSTGRES_SERVER_FOLDER"
         popd > /dev/null
         if [ -d "$TMP_FOLDER/$POSTGRES_SERVER_FOLDER" ]; then
 
@@ -384,8 +423,12 @@ fi
 restore $1 $2
 RC=$?
 if [ "$RC" -eq 0 ]; then
-    echo "Restore Script finished "
+    echo "Restore Script finished successfully!"
     echo "Please check env files if params are missing ($ENV_FILE)"
+    echo "---------------------------------------------------------------"
+else
+    echo "Restore Script finished with errors (exit code $RC)!"
+    echo "Please check log file!"
     echo "---------------------------------------------------------------"
 fi
 

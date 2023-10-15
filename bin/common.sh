@@ -19,6 +19,8 @@ ETC_DIE="$BASE_DIR/$FOLDER_NAME_ETC"
 
 function loadPackageFromArgs() {
 
+  unset COMPOSE_FILE
+
   if [ "$#" -gt 1 ]; then
     echo "Error: Illegal number of parameters"
     return 1
@@ -82,6 +84,7 @@ function loadPackageFromArgs() {
     ABSOLUTE_PACKAGE_FILES+=("$FOLDER/$FILE")
   done
 
+  #$NAME, $PRE_HOOK, $POST_HOOK comes from sourced docker.pkd file
   COMPOSE_FILE="$FOLDER/$COMPOSE_FILE"
   ENV_FILE="$ENV_DIR/$NAME.env"
   PRE_HOOK="$FOLDER/$PRE_HOOK"
