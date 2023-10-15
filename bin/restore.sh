@@ -387,15 +387,6 @@ function restore() {
 ## ------------------------#
 ## ------ BEGIN -----------#
 
-if ! [ $(id -u) = 0 ]; then
-    echo "Must run as root"
-    exit 1
-fi
-
-if [ -z "$DOCKER_PLATFORM_HOME" ]; then
-    #workaround to read env variables of user root if sudo is done
-    source /root/.profile
-fi
 if [ -z "$DOCKER_PLATFORM_HOME" ]; then
     echo "DOCKER_PLATFORM_HOME must be set"
     exit 1
@@ -427,6 +418,7 @@ if [ "$RC" -eq 0 ]; then
     echo "Please check env files if params are missing ($ENV_FILE)"
     echo "---------------------------------------------------------------"
 else
+    echo "---------------------------------------------------------------"
     echo "Restore Script finished with errors (exit code $RC)!"
     echo "Please check log file!"
     echo "---------------------------------------------------------------"
