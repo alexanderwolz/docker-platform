@@ -185,6 +185,9 @@ function executeRun() {
     if [ $BUILD_FROM_SOURCE ];then
         COMMAND+="b"
     fi
+    if [ $BUILD_WITHOUT_CACHE ];then
+        COMMAND+="c"
+    fi
     if [ $PULL_LATEST_IMAGE ];then
         COMMAND+="p"
     fi
@@ -283,7 +286,7 @@ REMOTE_ENV_FOLDER="$REMOTE_BASE_FOLDER/$FOLDER_NAME_ENV"
 REMOTE_ETC_FOLDER="$REMOTE_BASE_FOLDER/$FOLDER_NAME_ETC"
 
 declare -a OPTIONS=()
-while getopts r?b?f?s?i?v?p?h?e opt; do
+while getopts r?b?c?f?s?i?v?p?h?e opt; do
     case $opt in
     h)
         printHelpMenu
@@ -296,6 +299,10 @@ while getopts r?b?f?s?i?v?p?h?e opt; do
     b)
         BUILD_FROM_SOURCE=1
         OPTIONS+=("build-from-source")
+        ;;
+    c)
+        BUILD_WITHOUT_CACHE=1
+        OPTIONS+=("no-cache")
         ;;
     p)
         PULL_LATEST_IMAGE=1

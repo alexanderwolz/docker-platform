@@ -8,6 +8,7 @@ function printHelpMenu(){
     echo "----------------------------"
     echo "  -a run all packages"
     echo "  -b build container from source"
+    echo "  -c no cache (only use with -b)"
     echo "  -p pull latest image"
     echo "  -t tear down"
     echo "  -v delete docker volumes"
@@ -63,11 +64,20 @@ function doRun(){
     fi
 
     if [ $BUILD ]; then
-        echo "rebuilding images .."
-        if [ -f $ENV_FILE ]; then
-            docker compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE build
+        if [ $BUILD_NO_CACHE ]; then
+            echo "rebuilding images without cache .."
+            if [ -f $ENV_FILE ]; then
+                docker compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE build --no-cache
+            else
+                docker compose -p $NAME -f $COMPOSE_FILE build --no-cache
+            fi
         else
-            docker compose -p $NAME -f $COMPOSE_FILE build
+            echo "rebuilding images .."
+            if [ -f $ENV_FILE ]; then
+                docker compose -p $NAME -f $COMPOSE_FILE --env-file $ENV_FILE build
+            else
+                docker compose -p $NAME -f $COMPOSE_FILE build
+            fi
         fi
 
         if [ "$?" -ne 0 ]; then
@@ -131,13 +141,16 @@ if [ -z "$DOCKER_PLATFORM_HOME" ]; then
     exit 1
 fi
 
-while getopts abpvth opt; do
+while getopts abcpvth opt; do
     case $opt in
     a)
         RUN_ALL=1
         ;;
     b)
         BUILD=1
+        ;;
+    c)
+        BUILD_NO_CACHE=1
         ;;
     p)
         PULL_IMAGE=1
