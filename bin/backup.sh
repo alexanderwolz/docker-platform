@@ -126,6 +126,11 @@ function createMySqlBackups() {
     if [ -z "$MYSQL_SERVERS" ]; then
         echo "No Mariadb/MySQL containers found"
     else
+        echo "Found database servers:"
+        for MYSQL_SERVER in "${MYSQL_SERVERS[@]}"
+        do
+            echo "  - $MYSQL_SERVER"
+        done
         for MYSQL_SERVER in "${MYSQL_SERVERS[@]}"
         do
             createMySqlBackup $BACKUP_ROOT $MYSQL_SERVER
@@ -149,10 +154,13 @@ function createMySqlBackup() {
         local ROOT_PW=$(docker exec $MYSQL_SERVER bash -c 'echo "$MYSQL_ROOT_PASSWORD"')
     fi
 
+    local DB_CLIENT=($(docker exec $MYSQL_SERVER bash -c "which mysql || which mariadb"))
+    local DB_DUMP=($(docker exec $MYSQL_SERVER bash -c "which mysqldump || which mariadb-dump"))
+
     if [ ! $ROOT_PW ]; then
-        local DATABASES=($(docker exec $MYSQL_SERVER /usr/bin/mysql -uroot -N -e 'show databases'))
+        local DATABASES=($(docker exec $MYSQL_SERVER $DB_CLIENT -uroot -N -e 'show databases'))
     else
-         local DATABASES=($(docker exec $MYSQL_SERVER /usr/bin/mysql -uroot -p$ROOT_PW -N -e 'show databases'))
+         local DATABASES=($(docker exec $MYSQL_SERVER $DB_CLIENT -uroot -p$ROOT_PW -N -e 'show databases'))
     fi
     
     for DATABASE in "${DATABASES[@]}"
@@ -160,9 +168,9 @@ function createMySqlBackup() {
         if [ ! "$DATABASE" = "information_schema" ] && [ ! "$DATABASE" = "mysql" ] && [ ! "$DATABASE" = "sys" ] && [ ! "$DATABASE" = "performance_schema" ]; then
             echo "Backing up database '$DATABASE' of container '$MYSQL_SERVER' .."
             if [ ! $ROOT_PW ]; then
-                docker exec $MYSQL_SERVER /usr/bin/mysqldump -uroot --complete-insert --routines --triggers --single-transaction "$DATABASE" | gzip -9 > $BACKUP_FOLDER/"$DATABASE".sql.gz
+                docker exec $MYSQL_SERVER $DB_DUMP -uroot --complete-insert --routines --triggers --single-transaction "$DATABASE" | gzip -9 > $BACKUP_FOLDER/"$DATABASE".sql.gz
             else
-                docker exec $MYSQL_SERVER /usr/bin/mysqldump -uroot -p$ROOT_PW --complete-insert --routines --triggers --single-transaction "$DATABASE" | gzip -9 > $BACKUP_FOLDER/"$DATABASE".sql.gz
+                docker exec $MYSQL_SERVER $DB_DUMP -uroot -p$ROOT_PW --complete-insert --routines --triggers --single-transaction "$DATABASE" | gzip -9 > $BACKUP_FOLDER/"$DATABASE".sql.gz
             fi
         fi
     done
@@ -343,7 +351,7 @@ LOG_FILE="$BACKUP_ROOT/.log"
 LATEST_FOLDER="$DOCKER_PLATFORM_BACKUPS/latest"
 BACKUP_EXTENSION="tar.gz"
 BACKUP_ZIP="$BACKUP_ROOT.$BACKUP_EXTENSION"
-HELPER_IMAGE="alpine:3.17.2"
+HELPER_IMAGE="alpine:3.20.0"
 USER=1000
 GROUP=1000
 
