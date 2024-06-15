@@ -57,7 +57,7 @@ Folder ```bin``` contains a variety of toolchain scripts, of which some of them 
 The following scripts are synched to the remote host:
 - **armageddon.sh** - Script for tearing down the whole Docker environment
 - **backup.sh** - Backs up all container packages, volumes and environment variables
-- **bootstrap.sh** - Creates external networks and volumes according to the configuration in ```/etc/bootstrap.conf```
+- **bootstrap.sh** - Creates external networks and volumes
 - **build.sh** - Creates docker images on localhost and pushes them to a (private) registry
 - **cleanup_logs.sh** - Truncates docker log files and removes rotated ones
 - **common.sh** - Just a sourcable script holding common functions
