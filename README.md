@@ -58,8 +58,10 @@ The following scripts are synched to the remote host:
 - **armageddon.sh** - Script for tearing down the whole Docker environment
 - **backup.sh** - Backs up all container packages, volumes and environment variables
 - **bootstrap.sh** - Creates external networks and volumes according to the configuration in ```/etc/bootstrap.conf```
+- **build.sh** - Creates docker images on localhost and pushes them to a (private) registry
 - **cleanup_logs.sh** - Truncates docker log files and removes rotated ones
 - **common.sh** - Just a sourcable script holding common functions
+- **deploy.sh** - Uploads given package files to remote server and triggers ```run.sh``` on remote server
 - **hosts.sh** - Updates and writes docker hostnames to the remote server's host config
 - **restore.sh** - Restores packages, volumes and environment variables by a given backup file
 - **run.sh** - Runs a given Docker package and executes pre- and post-scripts
