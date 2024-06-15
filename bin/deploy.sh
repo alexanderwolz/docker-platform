@@ -252,7 +252,7 @@ SCRIPT_DIR="$PARENT_DIR/bin"
 LOCAL_CONFIG_DIR="$PARENT_DIR/config"
 DEPLOY_CONFIG="$LOCAL_CONFIG_DIR/deploy.conf"
 LOCAL_ETC_FILES="$PARENT_DIR/etc/*"
-LOCAL_SCRIPTS=$(ls -d -1 "$SCRIPT_DIR/"*.sh) #list all bash files
+LOCAL_SCRIPTS=$(ls -d -1 "$SCRIPT_DIR/"*.sh | grep -vw -E 'build.sh|deploy.sh') #list all bash scripts except build and deploy
 
 getAndCheckConfig
 
