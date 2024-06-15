@@ -32,7 +32,9 @@ do
             echo $RET
         fi
     else
-        echo "  Network $NETWORK already exists, skipping"
+        if [ -z $SCRIPT_DIR ]; then
+            echo "  Network $NETWORK already exists, skipping"
+        fi
     fi
 done
 
@@ -46,7 +48,9 @@ do
             echo $RET
         fi
     else
-        echo "  Volume $VOLUME already exists, skipping"
+        if [ -z $SCRIPT_DIR ]; then
+            echo "  Volume $VOLUME already exists, skipping"
+        fi
     fi
 done
 

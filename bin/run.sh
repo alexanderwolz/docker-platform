@@ -35,7 +35,7 @@ function doRun(){
         echo "Using env file: $ENV_FILE"
     fi
 
-    . $SCRIPT_DIR/networks.sh
+    . $SCRIPT_DIR/bootstrap.sh
 
     if [ $TEAR_DOWN ]; then
         #TODO: only restart or tear down and up again?
