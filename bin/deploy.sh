@@ -70,7 +70,7 @@ function initialize() {
             fi
 
             echo "-----------------------------------"
-            ssh $REMOTE $SSH_OPTS "source ~/.profile && bash $REMOTE_SCRIPTS_FOLDER/networks.sh"
+            ssh $REMOTE $SSH_OPTS "source ~/.profile && bash $REMOTE_SCRIPTS_FOLDER/bootstrap.sh"
             if [ "$?" -ne 0 ]; then
                 exit 1
             fi
@@ -252,7 +252,7 @@ SCRIPT_DIR="$PARENT_DIR/bin"
 LOCAL_CONFIG_DIR="$PARENT_DIR/config"
 DEPLOY_CONFIG="$LOCAL_CONFIG_DIR/deploy.conf"
 LOCAL_ETC_FILES="$PARENT_DIR/etc/*"
-LOCAL_SCRIPTS="$SCRIPT_DIR/armageddon.sh $SCRIPT_DIR/backup.sh $SCRIPT_DIR/common.sh $SCRIPT_DIR/hosts.sh $SCRIPT_DIR/networks.sh $SCRIPT_DIR/restore.sh $SCRIPT_DIR/run.sh $SCRIPT_DIR/stop.sh"
+LOCAL_SCRIPTS=$(ls -d -1 "$SCRIPT_DIR/"*.sh) #list all bash files
 
 getAndCheckConfig
 
