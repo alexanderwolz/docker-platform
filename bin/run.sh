@@ -133,7 +133,11 @@ function runAll(){
 ### ---- INIT ---- ###
 
 if [ -z "$DOCKER_PLATFORM_HOME" ]; then
-    #workaround to read env variables of user root if sudo is done
+    #workaround to source all env variables from profile.d
+    source <(cat /etc/profile.d/*)
+fi
+if [ -z "$DOCKER_PLATFORM_HOME" ]; then
+    #workaround to read env variables from current user
     source ~/.profile
 fi
 if [ -z "$DOCKER_PLATFORM_HOME" ]; then

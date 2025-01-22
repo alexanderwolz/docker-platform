@@ -268,16 +268,21 @@ else
     SSH_OPTS="-p $REMOTE_PORT"
 fi
 
-REMOTE_BASE_FOLDER=$(ssh $REMOTE $SSH_OPTS 'source ~/.profile && echo $DOCKER_PLATFORM_HOME')
+#echo ""
+REMOTE_BASE_FOLDER=$(ssh $REMOTE $SSH_OPTS "bash -l -c 'echo \$DOCKER_PLATFORM_HOME'")
 if [ -z $REMOTE_BASE_FOLDER ]; then
     echo "\$DOCKER_PLATFORM_HOME is not set on remote server"
     exit 1
+# else
+#     echo "Using $REMOTE_BASE_FOLDER for \$DOCKER_PLATFORM_HOME"
 fi
 
-REMOTE_BACKUP_FOLDER=$(ssh $REMOTE $SSH_OPTS 'source ~/.profile && echo $DOCKER_PLATFORM_BACKUPS')
-if [ -z $REMOTE_BASE_FOLDER ]; then
+REMOTE_BACKUP_FOLDER=$(ssh $REMOTE $SSH_OPTS "bash -l -c 'echo \$DOCKER_PLATFORM_BACKUPS'")
+if [ -z $REMOTE_BACKUP_FOLDER ]; then
     echo "\$DOCKER_PLATFORM_BACKUPS is not set on remote server"
     exit 1
+# else
+#     echo "Using $REMOTE_BACKUP_FOLDER for \$DOCKER_PLATFORM_BACKUPS"
 fi
 
 REMOTE_PACKAGES_FOLDER="$REMOTE_BASE_FOLDER/$FOLDER_NAME_PACKAGES"

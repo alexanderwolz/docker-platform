@@ -9,6 +9,14 @@ else
 fi
 
 if [ -z "$DOCKER_PLATFORM_HOME" ]; then
+    #workaround to source all env variables from profile.d
+    source <(cat /etc/profile.d/*)
+fi
+if [ -z "$DOCKER_PLATFORM_HOME" ]; then
+    #workaround to read env variables from current user
+    source ~/.profile
+fi
+if [ -z "$DOCKER_PLATFORM_HOME" ]; then
     echo "DOCKER_PLATFORM_HOME must be set"
     exit 1
 fi
