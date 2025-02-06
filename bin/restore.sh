@@ -293,21 +293,28 @@ function restore() {
         tar -zxf $BACKUP_FILE "./$MYSQL_SERVER_FOLDER"
         popd > /dev/null
         if [ -d "$TMP_FOLDER/$MYSQL_SERVER_FOLDER" ]; then
+
             local ROOT_PW=$(docker exec $MYSQL_SERVER bash -c 'echo "$MARIADB_ROOT_PASSWORD"')
             if [ ! $ROOT_PW ]; then
+                # lookup mysql root password
                 local ROOT_PW=$(docker exec $MYSQL_SERVER bash -c 'echo "$MYSQL_ROOT_PASSWORD"')
             fi
+
+            local DB_CLIENT=($(docker exec $MYSQL_SERVER bash -c "which mysql || which mariadb"))
+
             #we need to iterate over all dump files
             for SQL_DUMP in $TMP_FOLDER/$MYSQL_SERVER_FOLDER/*.sql.gz; do
                 DATABASE="$(basename "$SQL_DUMP" ".sql.gz")"
                 echo "Restoring database '$DATABASE' for server '$MYSQL_SERVER'"
                 if [ ! $ROOT_PW ]; then
-                    gunzip -c $SQL_DUMP | docker exec -i $MYSQL_SERVER /usr/bin/mysql -uroot $DATABASE
+                    gunzip -c $SQL_DUMP | docker exec -i $MYSQL_SERVER $DB_CLIENT -uroot $DATABASE
                 else
-                    gunzip -c $SQL_DUMP | docker exec -i $MYSQL_SERVER /usr/bin/mysql -uroot -p$ROOT_PW $DATABASE
+                    gunzip -c $SQL_DUMP | docker exec -i $MYSQL_SERVER $DB_CLIENT -uroot -p$ROOT_PW $DATABASE
                 fi
                  echo "Finished restoring database '$DATABASE' for server '$MYSQL_SERVER'"
             done
+
+
         else
             echo "no files found for mysql container '$MYSQL_SERVER' -> check backup file!"
             HAS_ERROR=true
