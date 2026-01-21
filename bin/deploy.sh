@@ -26,16 +26,10 @@ function initialize() {
 
             echo "-----------------------------------"
             echo "Deleting base folders .."
-            ssh $REMOTE $SSH_OPTS "rm -rf $REMOTE_BASE_FOLDER $REMOTE_BACKUP_FOLDER"
-            if [ "$?" -ne 0 ]; then
-                USER_ID=$(ssh $REMOTE $SSH_OPTS id -u)
-                echo "trying again with super user:"
-                ssh $REMOTE $SSH_OPTS -t "sudo rm -rf $REMOTE_BASE_FOLDER $REMOTE_BACKUP_FOLDER"
-            fi
-            if [ "$?" -ne 0 ]; then
+            ssh -tt $REMOTE $SSH_OPTS "sudo rm -rf $REMOTE_BASE_FOLDER $REMOTE_BACKUP_FOLDER" || {
                 echo "Error: Could not delete base folders!"
                 exit 1
-            fi
+            }
 
             echo "-----------------------------------"
             echo "Creating base folders '$REMOTE_BASE_FOLDER' and '$REMOTE_BACKUP_FOLDER' .."
@@ -261,11 +255,26 @@ if [ "$?" -ne 0 ]; then
     exit 1
 fi
 
-REMOTE=$REMOTE_USER@$REMOTE_HOST 
-if [ ! -e $REMOTE_KEY ]; then
-    SSH_OPTS="-i $REMOTE_KEY  -p $REMOTE_PORT"
+REMOTE="$REMOTE_USER@$REMOTE_HOST"
+
+# ControlMaster Socket (per Host/User/Port unique)
+SSH_CONTROL_PATH="$HOME/.ssh/cm-%r@%h:%p"
+
+if [ -e "$REMOTE_KEY" ]; then
+    SSH_OPTS="
+        -i $REMOTE_KEY
+        -p $REMOTE_PORT
+        -o ControlMaster=auto
+        -o ControlPersist=60s
+        -o ControlPath=$SSH_CONTROL_PATH
+    "
 else
-    SSH_OPTS="-p $REMOTE_PORT"
+    SSH_OPTS="
+        -p $REMOTE_PORT
+        -o ControlMaster=auto
+        -o ControlPersist=60s
+        -o ControlPath=$SSH_CONTROL_PATH
+    "
 fi
 
 #echo ""
