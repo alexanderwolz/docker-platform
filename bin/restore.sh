@@ -1,6 +1,8 @@
 #!/bin/bash
 # Copyright (C) 2023 Alexander Wolz <mail@alexanderwolz.de>
 
+UID=$(id -u)
+GID=$(id -g)
 
 function restorePackageFolder() {
     local PACKAGE_NAME=$1
@@ -19,7 +21,7 @@ function restorePackageFolder() {
         mkdir -p $LOCAL_PGK_DIR
         echo "Extracting package content to $LOCAL_PGK_DIR"
         tar -zxf "$TMP_FOLDER/$PACKAGE_ZIP" -C $LOCAL_PGK_DIR
-        chown -R 1000:1000 $LOCAL_PGK_DIR
+        chown -R "$UID:$GID" $LOCAL_PGK_DIR
     else
         echo "Could not extract package zip $PACKAGE_ZIP!"
         return 1
@@ -40,7 +42,7 @@ function restoreEnvFile() {
         local BACKUP_ENV="$TARGET_ENV.$NOW.bak"
         echo "Backing up existing env file for '$PACKAGE_NAME' into $BACKUP_ENV"
         mv $TARGET_ENV $BACKUP_ENV
-        chown 1000:1000 $BACKUP_ENV
+        chown "$UID:$GID" $BACKUP_ENV
     fi
 
     tar -tvf $BACKUP_FILE ./$ENV_ZIP >/dev/null 2>&1
@@ -53,7 +55,7 @@ function restoreEnvFile() {
 
         if [ -f "$TMP_FOLDER/$ENV_ZIP" ]; then
             tar -zxf "$TMP_FOLDER/$ENV_ZIP" -C $TARGET_DIR
-            chown 1000:1000 $TARGET_ENV
+            chown "$UID:$GID" $TARGET_ENV
         else
             echo "Could not extract env zip $ENV_ZIP!"
             return 1
