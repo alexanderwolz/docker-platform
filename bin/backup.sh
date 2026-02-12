@@ -183,7 +183,8 @@ function createVolumeBackup() {
     local VOLUME=$2
     local BACKUP_FOLDER="$BACKUP_ROOT/volumes"
     local MYSQL_LIB_DESTINATION="/var/lib/mysql"
-    local POSTGRES_LIB_DESTINATION="/var/lib/postgresql/data"
+    local POSTGRES_LIB_DESTINATION="/var/lib/postgresql"
+    local POSTGRES_LIB_DESTINATION2="/var/lib/postgresql/data"
 
     local CONTAINERS=$(docker ps -a --filter=volume=$VOLUME --format '{{.Names}}')
 
@@ -198,6 +199,10 @@ function createVolumeBackup() {
                 return 0
             fi
             if [ "$DESTINATION" = "$POSTGRES_LIB_DESTINATION" ]; then
+                echo "Backing up volume '$VOLUME' skipped (Postgres dump)"
+                return 0
+            fi
+            if [ "$DESTINATION" = "$POSTGRES_LIB_DESTINATION2" ]; then
                 echo "Backing up volume '$VOLUME' skipped (Postgres dump)"
                 return 0
             fi
