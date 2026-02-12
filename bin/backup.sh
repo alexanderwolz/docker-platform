@@ -100,16 +100,16 @@ function createPostgresBackup() {
     #TODO: exception handling
 
     local DB_USER=$(docker exec $POSTGRES_SERVER bash -c 'echo "$POSTGRES_USER"')
-    if [ ! $DB_USER ]; then
+    if [ -z "$DB_USER" ]; then
         local DB_USER="postgres"
     fi
 
-    local DATABASES=($(docker exec $POSTGRES_SERVER /usr/local/bin/psql -U $DB_USER -d postgres -t -A -c "SELECT datname FROM pg_database WHERE datname <> ALL ('{template0,template1,postgres}')"))
+    local DATABASES=($(docker exec $POSTGRES_SERVER psql -U $DB_USER -d postgres -t -A -c "SELECT datname FROM pg_database WHERE datname <> ALL ('{template0,template1,postgres}')"))
 
     for DATABASE in "${DATABASES[@]}"
     do
         echo "Backing up database '$DATABASE' of container '$POSTGRES_SERVER' .."
-        docker exec $POSTGRES_SERVER /usr/local/bin/pg_dump -U $DB_USER -F p $DATABASE | gzip -9 > $BACKUP_FOLDER/"$DATABASE".sql.gz
+        docker exec $POSTGRES_SERVER pg_dump -U $DB_USER -F p $DATABASE | gzip -9 > $BACKUP_FOLDER/"$DATABASE".sql.gz
     done
 }
 
