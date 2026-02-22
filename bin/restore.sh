@@ -244,13 +244,18 @@ function restore() {
                 fi
             fi
             if [[ $IMAGE_NAME == *"postgres"* ]]; then
-                local POSTGRES_LIB_DESTINATION="/var/lib/postgresql/data"
+                local POSTGRES_LIB_DESTINATION="/var/lib/postgresql"
+                local POSTGRES_LIB_DESTINATION2="/var/lib/postgresql/data"
                 local DESTINATION=$(docker inspect --format "{{ range .Mounts }}{{ if eq .Name \"$VOLUME\" }}{{ .Destination }}{{ end }}{{ end }}" $CONTAINER)
                 if [ "$DESTINATION" = "$POSTGRES_LIB_DESTINATION" ]; then
                     POSTGRES_SERVERS+=("$CONTAINER")
                     continue
                 fi
-            fi 
+                if [ "$DESTINATION" = "$POSTGRES_LIB_DESTINATION2" ]; then
+                    POSTGRES_SERVERS+=("$CONTAINER")
+                    continue
+                fi
+            fi
 
             echo "---------------------------------------------------------------"
             echo "Restoring volume '$VOLUME'" 
